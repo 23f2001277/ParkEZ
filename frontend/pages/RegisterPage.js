@@ -33,6 +33,12 @@ export default {
 					</div>
 				</div>
 				<div class="form-group row mb-3">
+					<label for="user-vehicle_number" class="col-sm-2 col-form-label">Vehicle Number:</label>
+					<div class="col-sm-10">
+						<input type="text" class="form-control" id="user-vehicle_number" v-model="cred.vehicle_number" required>
+					</div>
+				</div>
+				<div class="form-group row mb-3">
 					<label for="user-age" class="col-sm-2 col-form-label">Age:</label>
 					<div class="col-sm-10">
 						<input type="number" class="form-control" id="user-age" v-model="cred.age" required>

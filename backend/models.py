@@ -2,6 +2,7 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import UserMixin, RoleMixin
+from flask_security.utils import get_token_status
 import uuid
 
 db = SQLAlchemy()
@@ -30,6 +31,9 @@ class User(db.Model, UserMixin):
     roles = db.relationship('Role', secondary='user_roles', backref=db.backref('users', lazy='dynamic'))
     reservations = db.relationship('Reservation', backref='user', cascade='all, delete-orphan')
 
+    def get_auth_token(self):
+        from flask_security.core import _security
+        return _security.generate_token(self)
 
 class ParkingLot(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -46,7 +50,7 @@ class ParkingLot(db.Model):
             "prime_location_name": self.prime_location_name,
             "price": self.price,
             "address": self.address,
-            "pin_code": self.pin_code,
+            "pincode": self.pincode,
             "number_of_spots": self.number_of_spots
         }
 
@@ -76,6 +80,7 @@ class Reservation(db.Model):
     parking_timestamp = db.Column(db.DateTime, default=datetime.now(), nullable=False)
     leaving_timestamp = db.Column(db.DateTime, nullable=True)
     parking_cost = db.Column(db.Float, nullable=True)
+    vehicle_number = db.Column(db.String(20), nullable=True)
 
     def to_dict(self):
         return {
@@ -84,5 +89,6 @@ class Reservation(db.Model):
             "user_id": self.user_id,
             "parking_timestamp": self.parking_timestamp,
             "leaving_timestamp": self.leaving_timestamp,
-            "parking_cost": self.parking_cost
+            "parking_cost": self.parking_cost,
+            "vehicle_number": self.vehicle_number
         }

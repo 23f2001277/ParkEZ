@@ -20,6 +20,13 @@ const styles = `
   }
   .update-button { background-color: #27ae60; }
   .cancel-button { background-color: #bdc3c7; }
+
+  .message {
+    margin-bottom: 15px; padding: 10px;
+    border-radius: 5px; font-weight: bold;
+  }
+  .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+  .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
 `;
 
 const styleSheet = document.createElement("style");
@@ -35,64 +42,134 @@ export default {
       pincode: '',
       price: '',
       number_of_spots: '',
-      error: ''
+      originalData: {},
+      message: '',
+      messageType: '', // 'success' or 'error'
     };
   },
   async mounted() {
-    this.lotId = this.$route.params.id;
-    try {
-      const res = await fetch(`/api/parkinglots/${this.lotId}`);
-      const data = await res.json();
+  this.lotId = this.$route.params.id;
+  let token = null;
+  try {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      token = user.token;
+    }
+  } catch (error) {
+    console.error('Error parsing user from localStorage:', error);
+  }
 
-      if (!data || !data.id) {
-        this.error = "Parking lot not found.";
+  if (!token) {
+    this.message = "Authentication required. Please log in.";
+    this.messageType = "error";
+    this.$router.push("/login");
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/parkinglots/${this.lotId}`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+    const data = await res.json();
+
+    if (!data || !data.id) {
+      this.message = "Parking lot not found.";
+      this.messageType = "error";
+      return;
+    }
+
+    // Fill and store original data
+    this.prime_location_name = data.prime_location_name;
+    this.address = data.address;
+    this.pincode = data.pincode;
+    this.price = data.price;
+    this.number_of_spots = data.number_of_spots;
+    this.originalData = { ...data };
+
+  } catch (err) {
+    console.error(err);
+    this.message = "Failed to load parking lot.";
+    this.messageType = "error";
+  }
+},
+  methods: {
+    async submitUpdate() {
+      let token = null;
+      try {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          token = user.token;
+        }
+      } catch (error) {
+        console.error('Error parsing user from localStorage:', error);
+      }
+
+      if (!token) {
+        this.message = "Authentication required. Please log in.";
+        this.messageType = "error";
+        this.$router.push("/login");
         return;
       }
 
-      // Fill form values
-      this.prime_location_name = data.prime_location_name;
-      this.address = data.address;
-      this.pincode = data.pincode;
-      this.price = data.price;
-      this.number_of_spots = data.number_of_spots;
+      const updatedData = {
+        prime_location_name: this.prime_location_name,
+        address: this.address,
+        pincode: this.pincode,
+        price: parseInt(this.price),
+        number_of_spots: parseInt(this.number_of_spots),
+      };
 
-    } catch (err) {
-      console.error(err);
-      this.error = "Failed to load parking lot.";
-    }
-  },
-  methods: {
-    async submitUpdate() {
-      const res = await fetch(`/api/parkinglots/${this.lotId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prime_location_name: this.prime_location_name,
-          address: this.address,
-          pincode: this.pincode,
-          price: this.price,
-          number_of_spots: this.number_of_spots
-        })
-      });
+      // Check for changes
+      const isChanged = Object.entries(updatedData).some(
+        ([key, value]) => value !== this.originalData[key]
+      );
 
-      if (res.ok) {
-        alert("Parking Lot Updated Successfully");
-        this.$router.push("/adminhome");
-      } else {
-        alert("Failed to update parking lot.");
+      if (!isChanged) {
+        this.message = "No changes made.";
+        this.messageType = "error";
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/parkinglots/${this.lotId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(updatedData)
+        });
+
+        if (res.ok) {
+          this.message = "Parking lot updated successfully!";
+          this.messageType = "success";
+          setTimeout(() => {
+            this.$router.push('/admin');
+          }, 1000)
+        } else {
+          const errorData = await res.json();
+          this.message = errorData.message || errorData.error || "Update failed.";
+          this.messageType = "error";
+        }
+      } catch (error) {
+        console.error('Network error:', error);
+        this.message = "Network error. Please try again.";
+        this.messageType = "error";
       }
     },
     cancelEdit() {
-      this.$router.push("/adminhome");
+      this.$router.push("/admin");
     }
   },
   template: `
     <div class="form-container">
       <h2>Edit Parking Lot</h2>
-      <div v-if="error" style="color: red; margin-bottom: 10px;">{{ error }}</div>
-      <form v-if="!error" @submit.prevent="submitUpdate">
+      <div v-if="message" :class="'message ' + messageType">{{ message }}</div>
+      <form @submit.prevent="submitUpdate">
         <div class="form-group">
           <label for="prime_location_name">Prime Location Name:</label>
           <input type="text" id="prime_location_name" v-model="prime_location_name" required>
@@ -107,11 +184,11 @@ export default {
         </div>
         <div class="form-group">
           <label for="price">Price Per Hour:</label>
-          <input type="number" id="price" v-model="price" required>
+          <input type="number" id="price" v-model.number="price" required>
         </div>
         <div class="form-group">
           <label for="number_of_spots">Max Spots Available:</label>
-          <input type="number" id="number_of_spots" v-model="number_of_spots" required>
+          <input type="number" id="number_of_spots" v-model.number="number_of_spots" required>
         </div>
         <div class="button-group">
           <button type="submit" class="button update-button">Update</button>
