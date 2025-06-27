@@ -21,12 +21,27 @@ export default {
   },
 
   methods: {
+    // Helper method to get token
+    getToken() {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        try {
+          return JSON.parse(userStr).token;
+        } catch (error) {
+          console.error("Error parsing user token:", error);
+          return null;
+        }
+      }
+      return null;
+    },
+
     async loadData() {
       try {
-        const userStr = localStorage.getItem("user");
-        let token = "";
-        if (userStr) {
-          token = JSON.parse(userStr).token;
+        const token = this.getToken();
+        if (!token) {
+          console.error("No authentication token found");
+          this.$router.push('/login');
+          return;
         }
 
         // Always send the token for protected endpoints
@@ -79,11 +94,12 @@ export default {
     },
 
     async fetchOccupancyPrediction(lotId) {
-      const userStr = localStorage.getItem("user");
-      let token = "";
-      if (userStr) {
-        token = JSON.parse(userStr).token;
+      const token = this.getToken();
+      if (!token) {
+        console.error("No authentication token found");
+        return;
       }
+
       try {
         const res = await fetch(`/api/parkinglots/${lotId}/predict`, {
           headers: {
@@ -105,71 +121,80 @@ export default {
       }
     },
 
-    
-async ensureAllSpotsExist() {
-    try {
+    async ensureAllSpotsExist() {
+      try {
         console.log('Starting to ensure all spots exist...');
-        console.log('Token:', this.token); // ✅ Add this line to check your token
+        
+        const token = this.getToken();
+        console.log('Token:', token ? 'Found' : 'undefined');
+
+        if (!token) {
+          console.error("No authentication token available");
+          return;
+        }
 
         for (const lot of this.parkingLots) {
-            console.log(`Processing lot ${lot.id}: ${lot.prime_location_name}`);
+          console.log(`Processing lot ${lot.id}: ${lot.prime_location_name}`);
+          
+          const currentSpots = this.parkingSpots.filter(spot => spot.lot_id === lot.id);
+          const currentSpotCount = currentSpots.length;
+          const requiredSpotCount = lot.number_of_spots;
+          
+          console.log(`Lot ${lot.id}: has ${currentSpotCount} spots, needs ${requiredSpotCount}`);
+          
+          if (currentSpotCount < requiredSpotCount) {
+            const spotsToCreate = requiredSpotCount - currentSpotCount;
+            console.log(`Need to create ${spotsToCreate} spots for lot ${lot.id}`);
             
-            const currentSpots = this.parkingSpots.filter(spot => spot.lot_id === lot.id);
-            const currentSpotCount = currentSpots.length;
-            const requiredSpotCount = lot.number_of_spots;
-            
-            console.log(`Lot ${lot.id}: has ${currentSpotCount} spots, needs ${requiredSpotCount}`);
-            
-            if (currentSpotCount < requiredSpotCount) {
-                const spotsToCreate = requiredSpotCount - currentSpotCount;
-                console.log(`Need to create ${spotsToCreate} spots for lot ${lot.id}`);
+            for (let i = 0; i < spotsToCreate; i++) {
+              try {
+                const spotData = {
+                  lot_id: lot.id,
+                  status: 'A'
+                };
                 
-                for (let i = 0; i < spotsToCreate; i++) {
-                    try {
-                        const spotData = {
-                            lot_id: lot.id,
-                            status: 'A'
-                        };
-                        
-                        console.log(`Creating spot with data:`, spotData);
-                        
-                        const response = await fetch(`${this.API_BASE}/api/parkingspots`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${this.token}` // uses the token
-                            },
-                            body: JSON.stringify(spotData)
-                        });
-                        
-                        const result = await response.json();
-                        
-                        if (!response.ok) {
-                            console.error(`Failed to create spot for lot ${lot.id}:`, result);
-                            throw new Error(result.error || result.message || 'Failed to create spot');
-                        }
-                        
-                        console.log(`Successfully created spot:`, result);
-                        
-                    } catch (error) {
-                        console.error(`Error creating spot ${i + 1} for lot ${lot.id}:`, error);
-                    }
+                console.log(`Creating spot with data:`, spotData);
+                
+                // Fixed: Remove undefined variables and use proper URL
+                const response = await fetch(`/api/parkingspots`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify(spotData)
+                });
+                
+                if (!response.ok) {
+                  const errorText = await response.text();
+                  console.error(`Failed to create spot for lot ${lot.id}:`, errorText);
+                  throw new Error(`HTTP ${response.status}: ${errorText}`);
                 }
-            } else if (currentSpotCount === requiredSpotCount) {
-                console.log(`Lot ${lot.id} already has the correct number of spots`);
-            } else {
-                console.log(`Lot ${lot.id} has too many spots (${currentSpotCount} > ${requiredSpotCount})`);
+
+                const result = await response.json();
+                console.log(`Successfully created spot:`, result);
+                
+                // Add the new spot to our local array
+                this.parkingSpots.push(result);
+                
+              } catch (error) {
+                console.error(`Error creating spot ${i + 1} for lot ${lot.id}:`, error);
+              }
             }
+          } else if (currentSpotCount === requiredSpotCount) {
+            console.log(`Lot ${lot.id} already has the correct number of spots`);
+          } else {
+            console.log(`Lot ${lot.id} has too many spots (${currentSpotCount} > ${requiredSpotCount})`);
+          }
         }
         
         console.log('Finished ensuring all spots exist');
         
-    } catch (error) {
+      } catch (error) {
         console.error('Error in ensureAllSpotsExist:', error);
         throw error;
-    }
-},
-
+      }
+    },
 
     getSpotsForLot(lotId, allSpots) {
       return allSpots.filter(spot => spot.lot_id === lotId);
@@ -210,13 +235,11 @@ async ensureAllSpotsExist() {
 
     async deleteLot(lotId) {
       if (confirm("Are you sure you want to delete this lot?")) {
-        const userStr = localStorage.getItem('user');
-        if (!userStr) {
+        const token = this.getToken();
+        if (!token) {
           alert("You must be logged in as admin to delete a lot.");
           return;
         }
-
-        const token = JSON.parse(userStr).token;
 
         try {
           const res = await fetch(`/api/parkinglots/${lotId}`, {
