@@ -227,10 +227,20 @@ export default {
         if (response.ok) {
           const lots = await response.json();
 
+          // Process each lot to get real-time availability
           for (let lot of lots) {
+            // The API endpoint /api/parkingspots/available returns spots with status 'A' (Available)
+            // So this gives us the count of available spots
             const availableCount = await this.getActualAvailableSpots(lot.id);
-            lot.available_spots = availableCount;
+            
+            // Set the values correctly:
+            // - total_spots: total spots from lot data (number_of_spots)  
+            // - available_spots: current available spots from API call
             lot.total_spots = lot.number_of_spots || 0;
+            lot.available_spots = availableCount;
+            
+            // Debug logging to verify the data
+            console.log(`Lot ${lot.id}: Available=${availableCount}, Total=${lot.total_spots}`);
           }
 
           this.parkingLots = lots;
@@ -347,7 +357,7 @@ export default {
 
     logout() {
       localStorage.removeItem('user');
-      this.$router.push('/login');
+      this.$router.push('/');
     }
   },
 

@@ -59,7 +59,7 @@ def get_user_csv_export(task_id):
         return jsonify({'status': 'pending'}), 202
 
 @routes_app.route('/cache')
-@cache.cached(timeout=5)
+@cache.cached(timeout=2)
 def cache_time():
     return {'time' : str(datetime.now())}
     
@@ -296,7 +296,7 @@ def search_parking_lots():
     } for lot in lots])
 
 @routes_app.route('/api/parkinglots', methods=['GET'])
-@cache.cached(timeout=10)
+@cache.cached(timeout=2)
 def get_all_parking_lots():
     try:
         lots = ParkingLot.query.all()
@@ -322,7 +322,7 @@ def get_all_parking_lots():
 
 @routes_app.route('/api/parkinglots/<int:lot_id>', methods=['GET'])
 @token_required
-@cache.memoize(timeout=10)
+@cache.memoize(timeout=2)
 def get_parking_lot_by_id(lot_id):
     print("Current user roles:", [role.name for role in g.current_user.roles])
     try:
