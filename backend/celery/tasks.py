@@ -41,7 +41,7 @@ def send_daily_reminders(self):
     logger.info(f"Task running at: {current_datetime}")
     logger.info(f"Checking for bookings on: {actual_today}")
     
-    users = User.query.all()
+    users = [u for u in User.query.all() if not any(role.name == 'admin' for role in u.roles)]
     reminder_count = 0
     
     for user in users:
@@ -83,24 +83,30 @@ def send_monthly_activity_reports(self):
     logger.info("Starting monthly activity report task")
     
     today = datetime.now().date()
-    # Get previous month's data
+    
+    # Calculate previous month and year
     if today.month == 1:
         previous_month = 12
         year = today.year - 1
     else:
         previous_month = today.month - 1
         year = today.year
-    
+
+    # Start date of previous month
     month_start = datetime(year, previous_month, 1).date()
-    # Get last day of previous month
+
+    # End date of previous month
     if previous_month == 12:
         month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
     else:
         month_end = datetime(year, previous_month + 1, 1).date() - timedelta(days=1)
-    
+
     month_name = month_start.strftime('%B %Y')
     
-    users = User.query.all()
+    logger.info(f"Generating reports for previous month: {month_name}")
+    logger.info(f"Date range: {month_start} to {month_end}")
+    
+    users = [u for u in User.query.all() if not any(role.name == 'admin' for role in u.roles)]
     report_count = 0
     
     for user in users:
@@ -114,47 +120,9 @@ def send_monthly_activity_reports(self):
 
             # Only send report if user had any activity
             if not reservations:
+                logger.info(f"Skipped {user.email} - no activity in {month_name}")
                 continue
-            #     logger.info(f"No reservations found for {user.email}, generating test data")
-                
-            #     # Create sample booking data for testing
-            #     sample_bookings = [
-            #         {
-            #             "id": "TEST001",
-            #             "lot_name": "City Center Mall",
-            #             "spot_id": "A-15",
-            #             "date": "2024-06-05",
-            #             "cost": 150
-            #         },
-            #         {
-            #             "id": "TEST002", 
-            #             "lot_name": "City Center Mall",
-            #             "spot_id": "B-22",
-            #             "date": "2024-06-12",
-            #             "cost": 200
-            #         },
-            #         {
-            #             "id": "TEST003",
-            #             "lot_name": "Metro Station Parking",
-            #             "spot_id": "C-08",
-            #             "date": "2024-06-18",
-            #             "cost": 100
-            #         },
-            #         {
-            #             "id": "TEST004",
-            #             "lot_name": "City Center Mall", 
-            #             "spot_id": "A-30",
-            #             "date": "2024-06-25",
-            #             "cost": 175
-            #         }
-            #     ]
-                
-            #     total_bookings = len(sample_bookings)
-            #     total_amount = sum(booking["cost"] for booking in sample_bookings)
-            #     most_used_lot = "City Center Mall"  # Most frequent in sample data
-            #     bookings = sample_bookings
-                
-            # else:
+   
             total_bookings = len(reservations)
             total_amount = sum(r.parking_cost or 0 for r in reservations)
 
@@ -196,12 +164,11 @@ def send_monthly_activity_reports(self):
             send_email(user.email, subject, html)
             
             report_count += 1
-            logger.info(f"Sent monthly report to {user.email}")
+            logger.info(f"Sent monthly report to {user.email} for {month_name}")
             
         except Exception as e:
             logger.error(f"Failed to send monthly report to {user.email}: {str(e)}")
             continue  # Continue with next user even if one fails
     
-    logger.info(f"Monthly report task completed. Sent {report_count} reports.")
-    return f"Sent {report_count} monthly reports"
-
+    logger.info(f"Monthly report task completed. Sent {report_count} reports for {month_name}.")
+    return f"Sent {report_count} monthly reports for {month_name}"
