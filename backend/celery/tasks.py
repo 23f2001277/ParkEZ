@@ -81,9 +81,7 @@ def send_daily_reminders(self):
 @shared_task(bind=True, ignore_result=False)
 def send_monthly_activity_reports(self):
     logger.info("Starting monthly activity report task")
-    
     today = datetime.now().date()
-    
     # Calculate previous month and year
     if today.month == 1:
         previous_month = 12
@@ -91,10 +89,8 @@ def send_monthly_activity_reports(self):
     else:
         previous_month = today.month - 1
         year = today.year
-
     # Start date of previous month
     month_start = datetime(year, previous_month, 1).date()
-
     # End date of previous month
     if previous_month == 12:
         month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
@@ -102,7 +98,18 @@ def send_monthly_activity_reports(self):
         month_end = datetime(year, previous_month + 1, 1).date() - timedelta(days=1)
 
     month_name = month_start.strftime('%B %Y')
-    
+    # current month
+    # today = datetime.now().date()
+    # year = today.year
+    # month = today.month
+
+    # month_start = datetime(year, month, 1).date()
+    # if month == 12:
+    #     month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+    # else:
+    #     month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+
+    # month_name = month_start.strftime('%B %Y')
     logger.info(f"Generating reports for previous month: {month_name}")
     logger.info(f"Date range: {month_start} to {month_end}")
     
