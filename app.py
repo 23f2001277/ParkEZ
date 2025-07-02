@@ -41,18 +41,10 @@ def create_app():
             datastore.create_user(email='admin@gmail.com',
                                    password=generate_password_hash('admin'),
                                    roles=['admin'])
-
-        # if not datastore.find_user(email='ayush@gmail.com'):
-        #     datastore.create_user(email='ayush@gmail.com',
-        #                            password=generate_password_hash('ayush'),
-        #                            roles=['user'])
-
         db.session.commit()
-
     return app
-
+    
 app = create_app()
-
 celery_app = celery_init_app(app)
 # import backend.celery.celery_schedule  # Import to register periodic tasks
 excel.init_excel(app)  # Initialize Flask-Excel

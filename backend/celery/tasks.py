@@ -1,4 +1,5 @@
 from celery import shared_task
+from flask import render_template
 from backend.models import Reservation, ParkingSpot, ParkingLot, db, User
 import csv
 import os
@@ -28,7 +29,7 @@ def create_user_csv(self, user_id):
                 r.parking_timestamp,
                 r.leaving_timestamp,
                 r.parking_cost,
-                getattr(r, 'vehicle_number', '')
+                r.vehicle_number
             ])
     return filename
 
@@ -44,7 +45,6 @@ def send_daily_reminders(self):
     reminder_count = 0
     
     for user in users:
-        # Check if user has a reservation for the actual today (July 2nd)
         has_today_booking = Reservation.query.filter(
             Reservation.user_id == user.id,
             Reservation.parking_timestamp >= datetime.combine(actual_today, datetime.min.time()),
@@ -61,7 +61,7 @@ def send_daily_reminders(self):
                     <h2>Parking Reminder</h2>
                     <p>Hi {user.full_name},</p>
                     <p>You don't have a parking spot booked for {actual_today.strftime('%B %d, %Y')}.</p>
-                    <p>If you need parking, please visit our parking portal to make your reservation.</p>
+                    <p>If you need any parking spots, please visit our parking portal to make your reservation.</p>
                     <br>
                     <p>Best regards,<br>ParkEZ Team</p>
                 </body>
@@ -115,7 +115,46 @@ def send_monthly_activity_reports(self):
             # Only send report if user had any activity
             if not reservations:
                 continue
-
+            #     logger.info(f"No reservations found for {user.email}, generating test data")
+                
+            #     # Create sample booking data for testing
+            #     sample_bookings = [
+            #         {
+            #             "id": "TEST001",
+            #             "lot_name": "City Center Mall",
+            #             "spot_id": "A-15",
+            #             "date": "2024-06-05",
+            #             "cost": 150
+            #         },
+            #         {
+            #             "id": "TEST002", 
+            #             "lot_name": "City Center Mall",
+            #             "spot_id": "B-22",
+            #             "date": "2024-06-12",
+            #             "cost": 200
+            #         },
+            #         {
+            #             "id": "TEST003",
+            #             "lot_name": "Metro Station Parking",
+            #             "spot_id": "C-08",
+            #             "date": "2024-06-18",
+            #             "cost": 100
+            #         },
+            #         {
+            #             "id": "TEST004",
+            #             "lot_name": "City Center Mall", 
+            #             "spot_id": "A-30",
+            #             "date": "2024-06-25",
+            #             "cost": 175
+            #         }
+            #     ]
+                
+            #     total_bookings = len(sample_bookings)
+            #     total_amount = sum(booking["cost"] for booking in sample_bookings)
+            #     most_used_lot = "City Center Mall"  # Most frequent in sample data
+            #     bookings = sample_bookings
+                
+            # else:
             total_bookings = len(reservations)
             total_amount = sum(r.parking_cost or 0 for r in reservations)
 
@@ -165,3 +204,4 @@ def send_monthly_activity_reports(self):
     
     logger.info(f"Monthly report task completed. Sent {report_count} reports.")
     return f"Sent {report_count} monthly reports"
+
