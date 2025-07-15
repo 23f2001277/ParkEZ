@@ -1,6 +1,6 @@
 from flask import Flask
 from backend.models import db, User, Role
-from backend.routes import routes_app, test_bp
+from backend.routes import routes_app
 from backend.config import LocalDevelopmentConfig
 from flask_security import Security, SQLAlchemyUserDatastore
 from werkzeug.security import generate_password_hash
@@ -25,7 +25,7 @@ def create_app():
 
     # Register routes
     app.register_blueprint(routes_app)
-    app.register_blueprint(test_bp)
+    
     from backend.resources import api
     api.init_app(app)
     with app.app_context():

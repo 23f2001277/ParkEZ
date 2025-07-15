@@ -35,11 +35,6 @@ def token_required(f):
 def home():
     return render_template('index.html')
 
-@routes_app.route('/celery')
-def celery():
-    task = add.delay(10,20)
-    return {'task_id': task.id}
-
 @routes_app.route('/api/user-csv-export', methods=['POST'])
 @token_required
 def trigger_user_csv_export():
@@ -57,22 +52,7 @@ def get_user_csv_export(task_id):
         return send_file(filepath, as_attachment=True)
     else:
         return jsonify({'status': 'pending'}), 202
-
-@routes_app.route('/cache')
-@cache.cached(timeout=2)
-def cache_time():
-    return {'time' : str(datetime.now())}
     
-from flask import Blueprint, jsonify
-from backend.celery.tasks import send_monthly_activity_reports
-
-test_bp = Blueprint('test', __name__)
-
-@test_bp.route('/test-monthly-report')
-def test_monthly_report():
-    send_monthly_activity_reports.delay()
-    return jsonify({"status": "Monthly report task triggered!"})
-
 
 
 @routes_app.route('/login', methods=['POST'])
@@ -210,18 +190,6 @@ def user_dashboard():
     except Exception as e:
         print("Error in user_dashboard:", str(e))
         return jsonify({"error": "Failed to load user profile"}), 500
-
-@routes_app.route('/debug/routes', methods=['GET'])
-def debug_routes():
-    from flask import current_app
-    routes = []
-    for rule in current_app.url_map.iter_rules():
-        routes.append({
-            'endpoint': rule.endpoint,
-            'methods': list(rule.methods),
-            'rule': str(rule)
-        })
-    return jsonify(routes)
 
 @routes_app.route('/api/profile/<int:user_id>', methods=['GET'])
 @token_required
@@ -865,9 +833,7 @@ def _calculate_trends(reservations, period):
 @routes_app.route('/api/user-summary/<int:user_id>/comparison', methods=['GET'])
 @token_required
 def get_user_comparison(user_id):
-    """
-    Get user performance comparison with system averages
-    """
+    
     try:
         # Verify user access
         if not hasattr(g, 'current_user') or g.current_user.id != user_id:
@@ -1010,43 +976,4 @@ def get_admin_summary():
         traceback.print_exc()
         return jsonify({'error': 'Failed to generate admin summary'}), 500
 
-from statsmodels.tsa.holtwinters import ExponentialSmoothing
-import numpy as np
 
-def get_hourly_occupancy(lot_id, hours=72):
-    """
-    Returns a list of occupied spot counts for each hour in the past `hours` hours.
-    """
-    now = datetime.now()
-    hourly_occupancy = []
-    for h in range(hours, 0, -1):
-        start = now - timedelta(hours=h)
-        end = start + timedelta(hours=1)
-        occupied = ParkingSpot.query.filter_by(lot_id=lot_id, status='O').count()
-        hourly_occupancy.append(occupied)
-    return hourly_occupancy
-
-@routes_app.route('/api/parkinglots/<int:lot_id>/predict', methods=['GET'])
-@token_required
-def predict_lot_occupancy(lot_id):
-    """
-    Predict occupancy for the next 3 hours using historical data.
-    """
-    try:
-        # Get last 72 hours of occupancy data
-        history = get_hourly_occupancy(lot_id, hours=72)
-        if len(history) < 24:
-            return jsonify({"error": "Not enough data for prediction"}), 400
-
-        # Fit Exponential Smoothing model
-        model = ExponentialSmoothing(history, trend='add', seasonal=None)
-        fit = model.fit()
-        forecast = fit.forecast(3)  # Predict next 3 hours
-
-        return jsonify({
-            "lot_id": lot_id,
-            "predicted_occupancy": [max(0, int(round(x))) for x in forecast]
-        }), 200
-    except Exception as e:
-        print("Error in occupancy prediction:", str(e))
-        return jsonify({"error": "Failed to predict occupancy"}), 500

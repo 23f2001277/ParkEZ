@@ -77,8 +77,7 @@ export default {
           this.parkingLots = lotsData.map(lot => ({
             ...lot,
             number_of_spots: Number(lot.number_of_spots),
-            spots: this.getSpotsForLot(lot.id, spotsData),
-            predicted_occupancy: null // For prediction display
+            spots: this.getSpotsForLot(lot.id, spotsData)
           }));
         } else {
           this.parkingLots = [];
@@ -90,34 +89,6 @@ export default {
         console.error("Failed to fetch data:", error);
         this.parkingLots = [];
         this.parkingSpots = [];
-      }
-    },
-
-    async fetchOccupancyPrediction(lotId) {
-      const token = this.getToken();
-      if (!token) {
-        console.error("No authentication token found");
-        return;
-      }
-
-      try {
-        const res = await fetch(`/api/parkinglots/${lotId}/predict`, {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          // Store prediction in the lot object for display
-          const lot = this.parkingLots.find(l => l.id === lotId);
-          if (lot) {
-            lot.predicted_occupancy = data.predicted_occupancy;
-          }
-        } else {
-          console.error("Prediction fetch failed:", await res.text());
-        }
-      } catch (err) {
-        console.error("Prediction fetch error:", err);
       }
     },
 
@@ -294,18 +265,10 @@ export default {
               <h5 class="card-title d-flex justify-content-between">
                 {{ lot.prime_location_name }} - {{ lot.address }} ({{ lot.pincode }})
                 <div>
-                  <button class="btn btn-sm btn-info me-2" @click="fetchOccupancyPrediction(lot.id)">
-                    Predict Occupancy
-                  </button>
                   <button class="btn btn-sm btn-warning me-2" @click="editLot(lot.id)">Edit</button>
                   <button class="btn btn-sm btn-danger" @click="deleteLot(lot.id)">Delete</button>
                 </div>
               </h5>
-              <div v-if="lot.predicted_occupancy">
-                <small>
-                  Next 3h: {{ lot.predicted_occupancy.join(', ') }}
-                </small>
-              </div>
               <p class="text-muted">
                 (Occupied: {{ lot.spots.filter(s => s.status !== 'A').length }} / {{ lot.number_of_spots }})
               </p>
